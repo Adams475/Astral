@@ -31,37 +31,47 @@ left_frame = tk.Frame(root, width=200, height=600)
 left_frame.pack_propagate(False)
 left_frame.pack(side=tk.LEFT)
 
-password_label = tk.Label(left_frame, text="Enter Password:")
+password_frame = tk.Frame(left_frame)
+password_frame.pack(pady=50, side=tk.TOP)
+
+password_label = tk.Label(password_frame, text="Enter Password:")
 password_label.pack()
 
-password_entry = tk.Entry(left_frame, show="*")
+password_entry = tk.Entry(password_frame, show="*")
 password_entry.pack()
 
-ok_button = tk.Button(left_frame, text="OK", command=on_ok_click)
+ok_button = tk.Button(password_frame, text="OK", command=on_ok_click)
 ok_button.pack()
 
-current_password_label = tk.Label(left_frame, text="Current Password:")
+
+password_reset_frame = tk.Frame(left_frame)
+password_reset_frame.pack(pady=85, side=tk.TOP)
+
+current_password_label = tk.Label(password_reset_frame, text="Current Password:")
 current_password_label.pack()
 
-current_password_entry = tk.Entry(left_frame, show="*")
+current_password_entry = tk.Entry(password_reset_frame, show="*")
 current_password_entry.pack()
 
-new_password_label = tk.Label(left_frame, text="New Password:")
+new_password_label = tk.Label(password_reset_frame, text="New Password:")
 new_password_label.pack()
 
-new_password_entry = tk.Entry(left_frame, show="*")
+new_password_entry = tk.Entry(password_reset_frame, show="*")
 new_password_entry.pack()
 
-change_button = tk.Button(left_frame, text="Change", command=on_change_click)
+change_button = tk.Button(password_reset_frame, text="Change", command=on_change_click)
 change_button.pack()
 
-port_label = tk.Label(left_frame, text="Enter Port:")
+port_frame = tk.Frame(left_frame)
+port_frame.pack(pady=45, side=tk.BOTTOM)
+
+port_label = tk.Label(port_frame, text="Enter Port:")
 port_label.pack()
 
-port_entry = tk.Entry(left_frame)
+port_entry = tk.Entry(port_frame)
 port_entry.pack()
 
-listen_button = tk.Button(left_frame, text="Listen", command=on_listen_click)
+listen_button = tk.Button(port_frame, text="Listen", command=on_listen_click)
 listen_button.pack()
 
 # Right side
