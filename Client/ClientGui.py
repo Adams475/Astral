@@ -1,12 +1,17 @@
 import tkinter as tk
+from Client.ClientBackend import ClientInstance
+
+backend = ClientInstance()
 
 def on_login_click():
     ip = ip_entry.get()
     port = port_entry.get()
     name = name_entry.get()
     password = password_entry.get()
-    # Implement your logic for login here
-    print("Login details - IP:", ip, "Port:", port, "Name:", name, "Password:", password)
+
+    backend.login(ip, port, name, password)
+
+
 
 def on_enroll_click():
     ip = ip_entry.get()
@@ -16,14 +21,16 @@ def on_enroll_click():
     # Implement your logic for enrollment here
     print("Enrollment details - IP:", ip, "Port:", port, "Name:", name, "Password:", password)
 
+
 def on_send_click():
     message = message_entry.get()
-    # Implement your logic for sending message here
-    print("Sending message:", message)
+    print("sending: ", message)
+    backend.send_message(message)
+
 
 # Create main window
 root = tk.Tk()
-root.title("User Client")
+root.title("Client")
 root.geometry("925x500")
 
 # Left side

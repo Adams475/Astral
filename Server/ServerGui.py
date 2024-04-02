@@ -1,9 +1,13 @@
 import tkinter as tk
+from Server.ServerBackend import ServerInstance
+
+backend = ServerInstance()
 
 def on_ok_click():
     password = password_entry.get()
     # Implement your logic for handling password here
     print("Password entered:", password)
+
 
 def on_change_click():
     current_password = current_password_entry.get()
@@ -12,25 +16,28 @@ def on_change_click():
     print("Current Password:", current_password)
     print("New Password:", new_password)
 
+
 def on_listen_click():
     port = port_entry.get()
-    # Implement your logic for listening on port here
-    print("Listening on port:", port)
 
-# Create main window
+    backend.listen(port)
+
+
+# Main window
 root = tk.Tk()
-root.title("GUI Example")
+root.title("Server")
 root.geometry("800x400")
 
-# Left side
+# Left frame
 left_frame = tk.Frame(root, width=200, height=400)
 left_frame.pack_propagate(False)
 left_frame.pack(side=tk.LEFT)
 
+# Password Frame
 password_frame = tk.Frame(left_frame)
 password_frame.pack(pady=20, padx=10, side=tk.TOP)
 
-password_label = tk.Label(password_frame, text="Enter Password:")
+password_label = tk.Label(password_frame, text="Password:")
 password_label.pack()
 
 password_entry = tk.Entry(password_frame, show="*")
@@ -69,7 +76,7 @@ port_entry.pack()
 listen_button = tk.Button(port_frame, text="Listen", command=on_listen_click)
 listen_button.pack(pady=(5, 0))
 
-# Right side
+# Right Frame
 right_frame = tk.Frame(root, width=600, height=400)
 right_frame.pack_propagate(False)
 right_frame.pack(side=tk.RIGHT)
@@ -77,5 +84,7 @@ right_frame.pack(side=tk.RIGHT)
 display_text = tk.Text(right_frame)
 display_text.pack(fill=tk.BOTH, expand=True)
 
-# Run the application
+backend.set_text_frame(display_text)
+
+# Run
 root.mainloop()
