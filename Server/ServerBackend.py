@@ -39,6 +39,7 @@ class ServerInstance:
             data = connection.recv(8192)
             # TODO make text box follow newest line
             self.text_frame.insert(tk.INSERT, data.decode() + "\n")
+            self.text_frame.see(tk.END)
         # conn.sendall(reply)
         conn.close()
 

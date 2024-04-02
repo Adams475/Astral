@@ -3,14 +3,14 @@ from Client.ClientBackend import ClientInstance
 
 backend = ClientInstance()
 
+
 def on_login_click():
     ip = ip_entry.get()
     port = port_entry.get()
     name = name_entry.get()
     password = password_entry.get()
-
     backend.login(ip, port, name, password)
-
+    clear_entries()
 
 
 def on_enroll_click():
@@ -18,14 +18,22 @@ def on_enroll_click():
     port = port_entry.get()
     name = name_entry.get()
     password = password_entry.get()
-    # Implement your logic for enrollment here
-    print("Enrollment details - IP:", ip, "Port:", port, "Name:", name, "Password:", password)
+    # TODO
+    clear_entries()
 
 
 def on_send_click():
     message = message_entry.get()
     print("sending: ", message)
     backend.send_message(message)
+    message_entry.delete(0, tk.END)
+
+
+def clear_entries():
+    ip_entry.delete(0, tk.END)
+    port_entry.delete(0, tk.END)
+    name_entry.delete(0, tk.END)
+    password_entry.delete(0, tk.END)
 
 
 # Create main window

@@ -3,10 +3,12 @@ from Server.ServerBackend import ServerInstance
 
 backend = ServerInstance()
 
+
 def on_ok_click():
     password = password_entry.get()
     # Implement your logic for handling password here
     print("Password entered:", password)
+    password_entry.delete(0, tk.END)  # Clear the password entry box
 
 
 def on_change_click():
@@ -15,12 +17,14 @@ def on_change_click():
     # Implement your logic for changing password here
     print("Current Password:", current_password)
     print("New Password:", new_password)
+    current_password_entry.delete(0, tk.END)  # Clear the current password entry box
+    new_password_entry.delete(0, tk.END)  # Clear the new password entry box
 
 
 def on_listen_click():
     port = port_entry.get()
-
     backend.listen(port)
+    port_entry.delete(0, tk.END)  # Clear the port entry box
 
 
 # Main window
@@ -82,7 +86,7 @@ right_frame.pack_propagate(False)
 right_frame.pack(side=tk.RIGHT)
 
 display_text = tk.Text(right_frame)
-display_text.pack(fill=tk.BOTH, expand=True)
+display_text.pack(fill=tk.BOTH, expand=True, pady=10, padx=10)
 
 backend.set_text_frame(display_text)
 
