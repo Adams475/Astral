@@ -1,7 +1,12 @@
 import tkinter as tk
 from Client.ClientBackend import ClientInstance
+import utils
 
-backend = ClientInstance()
+
+pub_enc = utils.load_rsa("client/server_enc_dec_pub.txt")
+pub_sig = utils.load_rsa("client/server_sign_verify_pub.txt")
+
+backend = ClientInstance(pub_enc, pub_sig)
 
 
 def on_login_click():
@@ -18,14 +23,13 @@ def on_enroll_click():
     port = port_entry.get()
     name = name_entry.get()
     password = password_entry.get()
-    # TODO
+    backend.enroll(ip, port, name, password)
     clear_entries()
 
 
 def on_send_click():
     message = message_entry.get()
-    print("sending: ", message)
-    backend.send_message(message)
+    backend.send_string(message)
     message_entry.delete(0, tk.END)
 
 
@@ -94,6 +98,8 @@ message_entry.pack(fill=tk.X, expand=True, side=tk.LEFT, padx=(5, 10))
 
 send_button = tk.Button(bottom_frame, text="Send", command=on_send_click)
 send_button.pack(side=tk.RIGHT, padx=(0, 5))
+
+backend.text_frame = display_text
 
 # Run the application
 root.mainloop()
