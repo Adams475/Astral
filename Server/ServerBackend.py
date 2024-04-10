@@ -2,7 +2,7 @@ import socket
 import threading
 import tkinter as tk
 
-import utils
+import Astral.utils
 
 
 class ServerInstance:
@@ -14,10 +14,22 @@ class ServerInstance:
         # Lazy default for debugging
         self.port = '8080'
         self.text_frame = None
+        self.rsa_private_key_enc_dec = ""
+        self.rsa_private_key_signing = ""
+
+    def decrypt_keys(self, password):
+        encrypted_rsa_key_file_enc_dec = "server/encrypted_server_enc_dec_pub_prv.txt"
+        encrypted_rsa_key_file_signing = "server/encrypted_server_signing_verification_pub_prv.txt"
+        try:
+            self.rsa_private_key_enc_dec = Astral.utils.decrypt_rsa_private_key(encrypted_rsa_key_file_enc_dec, password)
+            self.rsa_private_key_signing = Astral.utils.decrypt_rsa_private_key(encrypted_rsa_key_file_signing, password)
+            self.write_text("Keys Decrypted Successfully")
+        except Exception as e:
+            self.write_text("Incorrect Password")
 
     def listen(self, port):
         # TODO - Check if signed in
-        if not utils.debug:
+        if not Astral.utils.debug:
             self.port = port
         thread = threading.Thread(target=self.spawn_servers)
         thread.start()
@@ -49,7 +61,6 @@ class ServerInstance:
         connection.close()
 
     def write_text(self, text):
-        print("writing:", text)
         self.text_frame.insert(tk.INSERT, text + "\n")
         self.text_frame.see(tk.END)
 

@@ -1,5 +1,5 @@
 import tkinter as tk
-from Client.ClientBackend import ClientInstance
+from Astral.Client.ClientBackend import ClientInstance
 import utils
 
 
