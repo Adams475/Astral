@@ -3,6 +3,7 @@ from Crypto.PublicKey import RSA
 
 debug = True
 
+
 def load_rsa(file_path):
     with open(file_path, "r") as key_file:
         key_data = key_file.read()
@@ -11,7 +12,6 @@ def load_rsa(file_path):
 
 
 def encrypt_message(message, public_key):
-    # TODO - debug
     cipher = PKCS1_OAEP.new(public_key)
     encrypted_message = cipher.encrypt(message)
     return encrypted_message

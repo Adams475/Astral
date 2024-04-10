@@ -77,3 +77,13 @@ class ClientInstance:
 
     def set_text_frame(self, text_frame):
         self.text_frame = text_frame
+
+    def listen(self, sock):
+        while True:
+            # NOTE - Currently, assuming this data decodes to a string
+            data = sock.recv(8192)
+            # TODO find out proper way for finding out if client wants to close connection
+            if data.decode() == "closing session...":
+                break
+            self.write_text(data.decode())
+        sock.close()
