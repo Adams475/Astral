@@ -1,10 +1,10 @@
 import tkinter as tk
-from Astral.Client.ClientBackend import ClientInstance
-import Astral.utils
+from Client.ClientBackend import ClientInstance
+import utils
 
 
-pub_enc = Astral.utils.load_rsa("client/server_enc_dec_pub.txt")
-pub_sig = Astral.utils.load_rsa("client/server_sign_verify_pub.txt")
+pub_enc = utils.load_rsa("client/server_enc_dec_pub.txt")
+pub_sig = utils.load_rsa("client/server_sign_verify_pub.txt")
 
 backend = ClientInstance(pub_enc, pub_sig)
 
@@ -23,7 +23,7 @@ def on_enroll_click():
     port = port_entry.get()
     name = name_entry.get()
     password = password_entry.get()
-    backend.enroll(ip, port, name, password)
+    backend.init_enroll(ip, port, name, password)
     clear_entries()
 
 

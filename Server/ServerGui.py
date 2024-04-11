@@ -1,23 +1,23 @@
 import tkinter as tk
-from Astral.Server.ServerBackend import ServerInstance
+
+import utils
+from Server.ServerBackend import ServerInstance
 
 backend = ServerInstance()
 
 
 def on_ok_click():
     password = password_entry.get()
-    # Implement your logic for handling password here
-    backend.decrypt_keys(password)
-    print("Password entered:", password)
+    if utils.debug and password == "":
+        backend.decrypt_keys("Obscurity")
+    else:
+        backend.decrypt_keys(password)
     password_entry.delete(0, tk.END)  # Clear the password entry box
 
 
 def on_change_click():
     current_password = current_password_entry.get()
     new_password = new_password_entry.get()
-    # Implement your logic for changing password here
-    print("Current Password:", current_password)
-    print("New Password:", new_password)
     current_password_entry.delete(0, tk.END)  # Clear the current password entry box
     new_password_entry.delete(0, tk.END)  # Clear the new password entry box
 
