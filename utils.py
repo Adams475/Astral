@@ -1,3 +1,4 @@
+from pathlib import Path
 from Crypto.Cipher import PKCS1_OAEP
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256, HMAC
@@ -9,8 +10,32 @@ from Crypto.Random import get_random_bytes
 debug = True
 
 
+# Called on startup to check if a new encrypted key file was made
+# If so, replace the old encrypted key files with the new ones.
+def check_new_keys():
+    new_fp_enc_dec = Path("server/new_encrypted_server_enc_dec_pub_prv.txt")
+    new_fp_signing = Path("server/new_encrypted_server_signing_verification_pub_prv.txt")
+    old_fp_enc_dec = Path("server/encrypted_server_enc_dec_pub_prv.txt")
+    old_fp_signing = Path("server/encrypted_server_signing_verification_pub_prv.txt")
+    if new_fp_enc_dec.exists():
+        old_fp_enc_dec.unlink()
+        old_fp_signing.unlink()
+        new_fp_enc_dec.rename("server/encrypted_server_enc_dec_pub_prv.txt")
+        new_fp_signing.rename("server/encrypted_server_signing_verification_pub_prv.txt")
+
+
 def hash_message(message):
     return SHA256.new(message)
+
+
+# Encrypts an RSA key that was imported into pycryptodome
+def encrypt_rsa_key(decrypted_rsa_key, password):
+    hashed_pw = hashlib.sha256(password.encode()).digest()
+    cipher = AES.new(hashed_pw[:16], AES.MODE_CFB, hashed_pw[16:])
+    # Must convert key back from PyCryptodome object back to original byte array
+    exported_key = decrypted_rsa_key.export_key()
+    encrypted_data = cipher.encrypt(exported_key)
+    return encrypted_data
 
 
 def decrypt_rsa_private_key(encrypted_rsa_key_file, password):
@@ -68,8 +93,10 @@ def make_hmac(key, message):
     hmac_obj.update(message)
     return hmac_obj.digest()
 
+
 def encrypt_AES():
     return
+
 
 def decrypt_AES():
     return

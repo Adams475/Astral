@@ -2,7 +2,6 @@ import json
 import socket
 import threading
 import tkinter as tk
-
 import utils
 
 PASSWORD_HASH_LEN = 16  # Magic Number, the password hash sent by the client is 16 bytes long
@@ -25,10 +24,13 @@ class ServerInstance:
         self.rsa_private_key_enc_dec = ""
         self.rsa_private_key_signing = ""
         self.authenticated = False
+        self.password_changed = False
+        utils.check_new_keys()
 
     def decrypt_keys(self, password):
         encrypted_rsa_key_file_enc_dec = "server/encrypted_server_enc_dec_pub_prv.txt"
         encrypted_rsa_key_file_signing = "server/encrypted_server_signing_verification_pub_prv.txt"
+
         try:
             self.rsa_private_key_enc_dec = utils.decrypt_rsa_private_key(encrypted_rsa_key_file_enc_dec,
                                                                          password)
@@ -181,3 +183,38 @@ class ServerInstance:
 
     def sign_message(self, hash_msg):
         return utils.sign_message(hash_msg, self.rsa_private_key_signing)
+
+    def change_password(self, current_password, new_password):
+        # First get file path for encrypted keys
+        encrypted_rsa_key_file_enc_dec = "server/encrypted_server_enc_dec_pub_prv.txt"
+        encrypted_rsa_key_file_signing = "server/encrypted_server_signing_verification_pub_prv.txt"
+
+        # Make sure input password is correct
+        try:
+            self.rsa_private_key_enc_dec = utils.decrypt_rsa_private_key(encrypted_rsa_key_file_enc_dec,
+                                                                         current_password)
+            self.rsa_private_key_signing = utils.decrypt_rsa_private_key(encrypted_rsa_key_file_signing,
+                                                                         current_password)
+            self.authenticated = True
+        except Exception as e:
+            print("Error in decoding, most likely incorrect password: ", e)
+
+        # If password fails or isn't correct, error and return
+        if not self.authenticated:
+            self.write_text("Cannot change password, entered current password is incorrect!")
+            return
+
+        # Now that password is correct, re-encrypt the keys using new password has
+        # and re-write encrypted password files with newly encrypted keys
+        encrypted_rsa_enc_dec = utils.encrypt_rsa_key(self.rsa_private_key_enc_dec, new_password)
+        encrypted_rsa_signing = utils.encrypt_rsa_key(self.rsa_private_key_signing, new_password)
+        encrypted_rsa_key_file_enc_dec = "server/new_encrypted_server_enc_dec_pub_prv.txt"
+        encrypted_rsa_key_file_signing = "server/new_encrypted_server_signing_verification_pub_prv.txt"
+        # Can't write a raw byte array to a file in python, so we convert the encrypted data to hex-code
+        with open(encrypted_rsa_key_file_enc_dec, "w") as file:
+            file.write(encrypted_rsa_enc_dec.hex())
+        with open(encrypted_rsa_key_file_signing, "w") as file:
+            file.write(encrypted_rsa_signing.hex())
+        self.write_text("Password successfully changed!")
+        self.write_text("Changes to the password will take effect on next server boot.")
+        self.password_changed = True

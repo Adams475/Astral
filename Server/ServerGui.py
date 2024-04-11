@@ -20,6 +20,7 @@ def on_change_click():
     new_password = new_password_entry.get()
     current_password_entry.delete(0, tk.END)  # Clear the current password entry box
     new_password_entry.delete(0, tk.END)  # Clear the new password entry box
+    backend.change_password(current_password, new_password)
 
 
 def on_listen_click():
