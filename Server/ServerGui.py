@@ -1,5 +1,5 @@
 import tkinter as tk
-from Server.ServerBackend import ServerInstance
+from Astral.Server.ServerBackend import ServerInstance
 
 backend = ServerInstance()
 
@@ -7,6 +7,7 @@ backend = ServerInstance()
 def on_ok_click():
     password = password_entry.get()
     # Implement your logic for handling password here
+    backend.decrypt_keys(password)
     print("Password entered:", password)
     password_entry.delete(0, tk.END)  # Clear the password entry box
 
