@@ -1,10 +1,10 @@
 import tkinter as tk
 from Astral.Client.ClientBackend import ClientInstance
-import utils
+import Astral.utils
 
 
-pub_enc = utils.load_rsa("client/server_enc_dec_pub.txt")
-pub_sig = utils.load_rsa("client/server_sign_verify_pub.txt")
+pub_enc = Astral.utils.load_rsa("client/server_enc_dec_pub.txt")
+pub_sig = Astral.utils.load_rsa("client/server_sign_verify_pub.txt")
 
 backend = ClientInstance(pub_enc, pub_sig)
 
