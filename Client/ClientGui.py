@@ -1,12 +1,18 @@
 import tkinter as tk
-from Client.ClientBackend import ClientInstance
-import utils
-
+from Astral.Client.ClientBackend import ClientInstance
+from Astral import utils
+from tkinter import messagebox
 
 pub_enc = utils.load_rsa("client/server_enc_dec_pub.txt")
 pub_sig = utils.load_rsa("client/server_sign_verify_pub.txt")
 
 backend = ClientInstance(pub_enc, pub_sig)
+
+
+def on_close():
+    if messagebox.askokcancel("Quit", "Do you want to quit?"):
+        backend.disconnect()
+        root.destroy()
 
 
 def on_login_click():
@@ -98,6 +104,8 @@ message_entry.pack(fill=tk.X, expand=True, side=tk.LEFT, padx=(5, 10))
 
 send_button = tk.Button(bottom_frame, text="Send", command=on_send_click)
 send_button.pack(side=tk.RIGHT, padx=(0, 5))
+
+root.protocol("WM_DELETE_WINDOW", on_close)
 
 backend.text_frame = display_text
 

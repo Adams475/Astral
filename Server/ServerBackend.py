@@ -2,7 +2,7 @@ import json
 import socket
 import threading
 import tkinter as tk
-import utils
+from Astral import utils
 
 PASSWORD_HASH_LEN = 16  # Magic Number, the password hash sent by the client is 16 bytes long
 REQUEST_HEADERS = {'0'.encode(): "RSA", '1'.encode(): "CLEAR-TEXT", '2'.encode(): "AES"}
@@ -13,7 +13,10 @@ class ServerInstance:
     def __init__(self):
         self.client_passwords = {}
         self.hmac_randoms = {}
+        self.client_enc_dec_session_keys = {}
+        self.client_signing_session_keys = {}
         self.should_listen = False
+        self.listeners = {}
         self.threads = []
         # Lazy default for debugging
         if utils.debug:
@@ -42,7 +45,9 @@ class ServerInstance:
             self.write_text("Incorrect Password")
 
     def listen(self, port):
-        # TODO - Check if signed in
+        if not self.authenticated:
+            self.write_text("You must login before starting the server")
+            return
         if not utils.debug:
             self.port = port
         thread = threading.Thread(target=self.spawn_servers)
@@ -50,10 +55,6 @@ class ServerInstance:
         print("returning")
 
     def spawn_servers(self):
-        if not self.authenticated:
-            self.write_text("You must login before starting the server")
-            return
-
         self.should_listen = True
         server_socket = socket.socket()
         server_name = "127.0.0.1"
@@ -81,10 +82,12 @@ class ServerInstance:
                 continue
 
             self.write_text(f"Message from address {addr}: {client_message}")
-            response, keep_alive = self.handle_request(client_message)
+            response, keep_alive, listen = self.handle_request(client_message, connection)
             if response is not None:
                 self.write_text(f"Response to address {addr}: {response}")
                 connection.send(response)
+                if listen:
+                    return
             if not keep_alive:
                 break
         connection.close()
@@ -113,7 +116,7 @@ class ServerInstance:
             return None
 
     # Parse verb and message body
-    def handle_request(self, message):
+    def handle_request(self, message, connection):
         data = json.loads(message)
         verb = data['Verb']
         body = data['Body']  # I use body for the signature, no real reason why
@@ -121,49 +124,83 @@ class ServerInstance:
         signed_msg = self.sign_message(hash_msg).decode('latin-1')
         if verb == 'Enroll':
             if self.enroll_user(body):
-                response = json.dumps({"Status": "Success", "Signature": signed_msg})
-                return response.encode('latin-1'), False  # Repetitive code
+                response = json.dumps({"Status": "Success", "Signature": signed_msg, "Message": "Done"})
+                return response.encode('latin-1'), False, False  # Repetitive code
             else:
-                response = json.dumps({"Status": "Fail", "Reason": "Already Enrolled", "Signature": signed_msg})
-                return response.encode('latin-1'), False
+                response = json.dumps({"Status": "Fail", "Reason": "Already Enrolled", "Signature": signed_msg,
+                                       "Message": "Done"})
+                return response.encode('latin-1'), False, False
         elif verb == 'Login':  # Login is a persistent connection
             challenge = utils.generate_128_bit_random_number()
+            if body in self.listeners:
+                response = json.dumps({"Status": "Fail", "Reason": "User Is Already Connected",
+                                       "Signature": signed_msg, "Message": "Done"})
+                return response.encode('latin-1'), False, False
             if body in self.client_passwords:
                 self.hmac_randoms[body] = challenge
                 response = json.dumps(
-                    {"Status": "Success", "Challenge": challenge.decode('latin-1'), "Signature": signed_msg})
-                return response.encode('latin-1'), True     # TODO - remove unnecessary json nesting
+                    {"Status": "Success", "Challenge": challenge.decode('latin-1'), "Signature": signed_msg,
+                     "Message": "Done"})
+                return response.encode('latin-1'), True, False
             else:
                 response = json.dumps({"Status": "Fail", "Reason": "User Does Not Exist, Please Enroll First",
-                                       "Signature": signed_msg})
-                return response.encode('latin-1'), True
+                                       "Signature": signed_msg, "Message": "Done"})
+                return response.encode('latin-1'), False, False
         elif verb == 'HMAC':
             try:
                 user = data['Username']
             except Exception:
                 response = json.dumps({"Status": "Fail", "Reason": "Bad JSON",
-                                       "Signature": signed_msg})
-                return response.encode('latin-1'), False
+                                       "Signature": signed_msg, "Message": "Done"})
+                return response.encode('latin-1'), False, False
             hmac = body
             if user not in self.hmac_randoms:
                 response = json.dumps({"Status": "Fail", "Reason": "User Not Logged In",
-                                       "Signature": signed_msg})
-                return response.encode('latin-1'), False
+                                       "Signature": signed_msg, "Message": "Done"})
+                return response.encode('latin-1'), False, False
             if utils.make_hmac(self.client_passwords[user], self.hmac_randoms[user]) != hmac.encode("latin-1"):
                 response = json.dumps({"Status": "Fail", "Reason": "HMAC Does Not Match",
-                                       "Signature": signed_msg})
-                return response.encode('latin-1'), False
+                                       "Signature": signed_msg, 'Message': 'Done'})
+                return response.encode('latin-1'), False, False
 
             session_key_enc_dec = utils.generate_128_bit_random_number()
             session_key_signing = utils.generate_128_bit_random_number()
 
-            # TODO Encrypt keys, send them in a JSON, Store the session keys for this client
+            password_hash = self.client_passwords[user]
+            random_challenge = self.hmac_randoms[user]
 
-            response = json.dumps({"Status": "Success", "Signature": signed_msg})
-            return response.encode('latin-1'), False  # needs to be true in the future
+            cipher = utils.encrypt_AES(password_hash, random_challenge)  # AES has a factory for ciphers?
+            encrypted_session_key_enc_dec = cipher.encrypt(session_key_enc_dec).decode('latin-1')
+            encrypted_session_key_signing = cipher.encrypt(session_key_signing).decode('latin-1')
 
+            response = json.dumps({"Status": "Success", "Enc_Dec": encrypted_session_key_enc_dec,
+                                   "Signing": encrypted_session_key_signing, "Signature": signed_msg,
+                                   'Message': 'Listener'})
+            self.listeners[user] = connection
+            return response.encode('latin-1'), True, True
+            # DONE Encrypt keys, send them in a JSON, Store the session keys for this client
+        elif verb == 'Disconnect':
+            self.disconnect_user(body)
+            return None, False, False
         response = json.dumps({"Status": "Bad Verb", "Signature": signed_msg})
-        return response.encode(), False     # TODO - Should this be latin-1 ?
+        return response.encode('latin-1'), False
+
+    def disconnect_user(self, body):
+        password_hash = body[-PASSWORD_HASH_LEN:]
+        username = body[:-PASSWORD_HASH_LEN]
+        if username not in self.client_passwords:
+            self.write_text(f"Client {username} tried to disconnect, but username not in Database")
+            return
+        if username in self.client_passwords and self.client_passwords[username] != password_hash.encode('latin-1'):
+            self.write_text(f"Client {username} tried to disconnect, but password was wrong!")
+            return
+        self.listeners[username].close()
+        del self.listeners[username]
+        del self.hmac_randoms[username]
+        del self.client_signing_session_keys[username]
+        del self.client_enc_dec_session_keys[username]
+        self.write_text(f"Disconnected {username} successfully!")
+        return
 
     # Enroll a user.
     def enroll_user(self, body):

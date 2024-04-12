@@ -94,8 +94,9 @@ def make_hmac(key, message):
     return hmac_obj.digest()
 
 
-def encrypt_AES():
-    return
+def encrypt_AES(key, iv):
+    cipher = AES.new(key, AES.MODE_CFB, iv)
+    return cipher
 
 
 def decrypt_AES():
