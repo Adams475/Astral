@@ -35,7 +35,7 @@ def on_enroll_click():
 
 def on_send_click():
     message = message_entry.get()
-    backend.send_string(message)
+    backend.send_broadcast_message(message)
     message_entry.delete(0, tk.END)
 
 

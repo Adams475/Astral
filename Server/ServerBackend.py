@@ -64,10 +64,14 @@ class ServerInstance:
         self.write_text(f"Listening on port: {self.port}")
 
         while self.should_listen:
+            print("ShouldListen = ", self.should_listen)
             connection, addr = server_socket.accept()
+            print("Connection", connection)
             thread = threading.Thread(target=self.handle_client, args=(connection, addr))
             self.threads.append(thread)
             thread.start()
+            print("????")
+        print("Should never happen")
 
     def handle_client(self, connection, addr):
         print("Thread")
@@ -87,6 +91,7 @@ class ServerInstance:
                 self.write_text(f"Response to address {addr}: {response}")
                 connection.send(response)
                 if listen:
+                    print("returning")
                     return
             if not keep_alive:
                 break
@@ -108,9 +113,6 @@ class ServerInstance:
             return utils.decrypt_message(raw_data, self.rsa_private_key_enc_dec)
         elif REQUEST_HEADERS[header_byte] == "CLEAR-TEXT":
             return raw_data
-        elif REQUEST_HEADERS[header_byte] == "AES":
-            # TODO
-            return None
         else:
             # Exception
             return None
@@ -118,6 +120,7 @@ class ServerInstance:
     # Parse verb and message body
     def handle_request(self, message, connection):
         data = json.loads(message)
+        print(data)
         verb = data['Verb']
         body = data['Body']  # I use body for the signature, no real reason why
         hash_msg = utils.hash_message(body.encode('latin-1'))
@@ -165,7 +168,8 @@ class ServerInstance:
 
             session_key_enc_dec = utils.generate_128_bit_random_number()
             session_key_signing = utils.generate_128_bit_random_number()
-
+            self.client_signing_session_keys[user] = session_key_signing
+            self.client_enc_dec_session_keys[user] = session_key_enc_dec
             password_hash = self.client_passwords[user]
             random_challenge = self.hmac_randoms[user]
 
@@ -182,10 +186,50 @@ class ServerInstance:
         elif verb == 'Disconnect':
             self.disconnect_user(body)
             return None, False, False
+        elif verb == 'Broadcast':
+            iv = body
+            try:
+                msg = data['Message']
+                hmac = data['HMAC']
+                username = data['Username']
+            except Exception as e:
+                response = json.dumps({"Status": "Fail", "Reason": "Bad JSON",
+                                       "Signature": signed_msg, 'Message': 'Done'})
+                self.write_text("Received Bad JSON from Client")
+                return response.encode('latin-1'), False, False
+            if utils.make_hmac(self.client_signing_session_keys[username], msg) != hmac.encode("latin-1"):
+                response = json.dumps({"Status": "Fail", "Reason": "HMAC Does Not Match",
+                                       "Signature": signed_msg, 'Message': 'Done'})
+                return response.encode('latin-1'), False, False
+            cipher = utils.encrypt_AES(self.client_enc_dec_session_keys[username], iv)
+            plaintext = cipher.decrypt(msg)
+            self.write_text(f"Received message from {username}. Message contents: {plaintext}. Broadcasting message...")
+            self.broadcast_message(plaintext, username)
+            response = json.dumps({"Status": "Success", "Reason": "Message Broadcast Successfully!",
+                                   "Signature": signed_msg, 'Message': 'Done'})
+            return response.encode('latin-1'), False, False
+
+        signed_msg = self.sign_message(hash_msg).decode('latin-1')
         response = json.dumps({"Status": "Bad Verb", "Signature": signed_msg})
         return response.encode('latin-1'), False
 
+    def broadcast_message(self, message, username):
+        for users in self.listeners:
+            if users == username:
+                continue
+            iv = utils.generate_128_bit_random_number()
+            cipher = utils.encrypt_AES(self.client_enc_dec_session_keys[users], iv)
+            encrypted_message = cipher.encrypt(message)
+            hmac = utils.make_hmac(self.client_signing_session_keys[users], encrypted_message)
+            data = json.dumps({"Verb": "Broadcast", "Body": iv.decode('latin-1'),
+                               "Message": encrypted_message.decode('latin-1'),
+                               "HMAC": hmac.decode('latin-1'),
+                               "Username": users}).encode('latin-1')
+            self.listeners[users].send(data)
+        ...
+
     def disconnect_user(self, body):
+        print('Hello?')
         password_hash = body[-PASSWORD_HASH_LEN:]
         username = body[:-PASSWORD_HASH_LEN]
         if username not in self.client_passwords:
