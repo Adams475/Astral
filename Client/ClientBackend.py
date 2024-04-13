@@ -55,6 +55,7 @@ class ClientInstance:
         except Exception as e:
             self.write_text("Unable to connect to the server at the specified address and port!")
             print("connection failure: ", e)
+            return
 
         # Now attempt authorization with server
         try:
@@ -120,13 +121,18 @@ class ClientInstance:
             self.write_fail(server_json['Reason'])
             return
 
+        cipher = utils.encrypt_AES(self.password_hash[:16], challenge.encode('latin-1'))
+        print("hi")
         try:
-            self.session_enc = server_json['Enc_Dec']
-            self.session_ver = server_json['Signing']
+            enc = server_json['Enc_Dec']
+            sig = server_json['Signing']
+            print(enc, sig)
         except Exception:
             self.write_fail('Enc_Dec or Signing not in server response')
             print(server_json)
             return
+        self.session_enc = cipher.decrypt(enc.encode('latin-1'))
+        self.session_ver = cipher.decrypt(sig.encode('latin-1'))
         self.write_text("Spawning Listening Thread")
         self.listening_connection = self.connection
         thread = threading.Thread(target=self.broadcast_listener)
@@ -141,6 +147,7 @@ class ClientInstance:
         try:
             sock.connect((self.server_ip, int(self.server_port)))
             self.connection = sock
+            print(self.connection)
         except Exception as e:
             self.write_text("Unable to connect to the server at the specified address and port!")
             print("connection failure: ", e)
@@ -153,10 +160,12 @@ class ClientInstance:
     # Can't use self.connection since that is being used to listen. I need it for disconnect.
     def send_broadcast_message(self, msg):
         iv = utils.generate_128_bit_random_number()
-        print(self.session_enc.encode('latin-1'), iv)
-        cipher = utils.encrypt_AES(self.session_enc.encode('latin-1'), iv)
+        print(self.session_enc, iv)
+        cipher = utils.encrypt_AES(self.session_enc, iv)
         encrypted_message = cipher.encrypt(msg.encode('latin-1'))
-        hmac = utils.make_hmac(self.session_ver.encode('latin-1'), encrypted_message)
+        hmac = utils.make_hmac(self.session_ver, encrypted_message)
+        print(f'sess')
+        print(f"HMAC {hmac.decode('latin-1')}, session_ver = {self.session_ver}, encrypted_message = {encrypted_message.decode('latin-1')}")
         data = json.dumps({"Verb": "Broadcast", "Body": iv.decode('latin-1'),
                            "Message": encrypted_message.decode('latin-1'),
                            "HMAC": hmac.decode('latin-1'),
@@ -187,8 +196,10 @@ class ClientInstance:
         self.listening = True
         try:
             while True:
-                data = self.listening_connection.recv(8192)
-                print(data)
+                print('Hi')
+                server_resp = self.listening_connection.recv(8192)
+                print(server_resp)
+                data = json.loads(server_resp)
                 try:
                     verb = data['Verb']
                     body = data['Body']  # I use body for the signature, no real reason why
@@ -202,11 +213,11 @@ class ClientInstance:
                 if verb != 'Broadcast':
                     self.write_text("Bad JSON from server")
                     continue
-                if utils.make_hmac(self.session_ver, msg) != hmac.encode("latin-1"):
+                if utils.make_hmac(self.session_ver, msg.encode('latin-1')) != hmac.encode("latin-1"):
                     self.write_text("HMAC doesnt match")
                     continue
-                cipher = utils.encrypt_AES(self.session_enc, iv)
-                plaintext = cipher.decrypt(msg)
+                cipher = utils.encrypt_AES(self.session_enc, iv.encode('latin-1'))
+                plaintext = cipher.decrypt(msg.encode('latin-1'))
                 self.write_text(f"Received message from {username}, message : {plaintext}")
         except Exception as e:
             self.write_fail("Connection died")

@@ -7,7 +7,7 @@ import hashlib
 from Crypto.Signature import pkcs1_15
 from Crypto.Random import get_random_bytes
 
-debug = True
+debug = False
 
 
 # Called on startup to check if a new encrypted key file was made

@@ -197,12 +197,13 @@ class ServerInstance:
                                        "Signature": signed_msg, 'Message': 'Done'})
                 self.write_text("Received Bad JSON from Client")
                 return response.encode('latin-1'), False, False
-            if utils.make_hmac(self.client_signing_session_keys[username], msg) != hmac.encode("latin-1"):
+            print(f"HMAC {hmac}, session_ver = {self.client_signing_session_keys[username]}, encrypted_message = {msg}")
+            if utils.make_hmac(self.client_signing_session_keys[username], msg.encode('latin-1')) != hmac.encode("latin-1"):
                 response = json.dumps({"Status": "Fail", "Reason": "HMAC Does Not Match",
                                        "Signature": signed_msg, 'Message': 'Done'})
                 return response.encode('latin-1'), False, False
-            cipher = utils.encrypt_AES(self.client_enc_dec_session_keys[username], iv)
-            plaintext = cipher.decrypt(msg)
+            cipher = utils.encrypt_AES(self.client_enc_dec_session_keys[username], iv.encode('latin-1'))
+            plaintext = cipher.decrypt(msg.encode('latin-1'))
             self.write_text(f"Received message from {username}. Message contents: {plaintext}. Broadcasting message...")
             self.broadcast_message(plaintext, username)
             response = json.dumps({"Status": "Success", "Reason": "Message Broadcast Successfully!",
@@ -224,7 +225,7 @@ class ServerInstance:
             data = json.dumps({"Verb": "Broadcast", "Body": iv.decode('latin-1'),
                                "Message": encrypted_message.decode('latin-1'),
                                "HMAC": hmac.decode('latin-1'),
-                               "Username": users}).encode('latin-1')
+                               "Username": username}).encode('latin-1')
             self.listeners[users].send(data)
         ...
 
