@@ -7,7 +7,7 @@ import hashlib
 from Crypto.Signature import pkcs1_15
 from Crypto.Random import get_random_bytes
 
-debug = True
+debug = False
 
 
 # Called on startup to check if a new encrypted key file was made
@@ -94,8 +94,9 @@ def make_hmac(key, message):
     return hmac_obj.digest()
 
 
-def encrypt_AES():
-    return
+def encrypt_AES(key, iv):
+    cipher = AES.new(key, AES.MODE_CFB, iv)
+    return cipher
 
 
 def decrypt_AES():

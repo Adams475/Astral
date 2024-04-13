@@ -1,14 +1,14 @@
 import tkinter as tk
 
-import utils
-from Server.ServerBackend import ServerInstance
+import Astral.utils
+from Astral.Server.ServerBackend import ServerInstance
 
 backend = ServerInstance()
 
 
 def on_ok_click():
     password = password_entry.get()
-    if utils.debug and password == "":
+    if Astral.utils.debug and password == "":
         backend.decrypt_keys("Obscurity")
     else:
         backend.decrypt_keys(password)

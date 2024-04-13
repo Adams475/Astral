@@ -1,7 +1,8 @@
 import socket
 import tkinter as tk
-import utils
+from Astral import utils
 import json
+import threading
 import base64
 
 from Crypto.Hash import SHA256
@@ -16,6 +17,8 @@ class ClientInstance:
     def __init__(self, public_enc, public_sig):
         self.public_enc = public_enc
         self.public_sig = public_sig
+        self.session_enc = None
+        self.session_ver = None
         # Lazy defaults for debugging
         if utils.debug:
             self.server_ip = "127.0.0.1"
@@ -31,6 +34,8 @@ class ClientInstance:
         self.connection = None
         self.text_frame = None
         self.server_response = None
+        self.listening = False
+        self.listening_connection = None
 
     def login(self, server_ip, server_port, name, password):
         if not utils.debug:
@@ -40,6 +45,9 @@ class ClientInstance:
             self.password = password
 
         # First initialize connection to server
+        if self.listening:
+            self.write_text("Your already listening bro, I can't support multiple users on the same window")
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             sock.connect((self.server_ip, int(self.server_port)))
@@ -47,6 +55,7 @@ class ClientInstance:
         except Exception as e:
             self.write_text("Unable to connect to the server at the specified address and port!")
             print("connection failure: ", e)
+            return
 
         # Now attempt authorization with server
         try:
@@ -56,11 +65,11 @@ class ClientInstance:
             print("authorize client failure: ", e)
 
         # Finally, terminate connection with server
-        try:
-            self.connection.close()
-        except Exception as e:
-            self.write_text("Unable to gracefully close socket!")
-            print("socket closure failure: ", e)
+        #try:
+        #    self.connection.close()
+        #except Exception as e:
+        #    self.write_text("Unable to gracefully close socket!")
+        #    print("socket closure failure: ", e)
 
     def authorize_client(self):
         data = json.dumps({"Verb": "Login", "Body": self.name}).encode('latin-1')
@@ -71,8 +80,7 @@ class ClientInstance:
         server_response = self.listen(self.connection)
         hashed_msg = utils.hash_message(self.name.encode('latin-1'))
 
-        # TODO Figure out why the fck this works
-        server_json = json.loads(server_response)  # ???????? WHY DOES IT ONLY WORK IF I NEST IT
+        server_json = json.loads(server_response)
 
         if not self.check_signature(hashed_msg, server_json):
             return
@@ -113,9 +121,107 @@ class ClientInstance:
             self.write_fail(server_json['Reason'])
             return
 
-        self.write_text("Success!")
+        cipher = utils.encrypt_AES(self.password_hash[:16], challenge.encode('latin-1'))
+        print("hi")
+        try:
+            enc = server_json['Enc_Dec']
+            sig = server_json['Signing']
+            print(enc, sig)
+        except Exception:
+            self.write_fail('Enc_Dec or Signing not in server response')
+            print(server_json)
+            return
+        self.session_enc = cipher.decrypt(enc.encode('latin-1'))
+        self.session_ver = cipher.decrypt(sig.encode('latin-1'))
+        self.write_text("Spawning Listening Thread")
+        self.listening_connection = self.connection
+        thread = threading.Thread(target=self.broadcast_listener)
+        thread.start()
+        print("thread started")
 
-        # Todo Finish the rest :P :3
+    def broadcast(self, msg):
+        if not self.listening:
+            self.write_text("Need to be logged in and active in server to send messages!")
+            return
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.connect((self.server_ip, int(self.server_port)))
+            self.connection = sock
+            print(self.connection)
+        except Exception as e:
+            self.write_text("Unable to connect to the server at the specified address and port!")
+            print("connection failure: ", e)
+        try:
+            self.send_broadcast_message(msg)
+        except Exception as e:
+            self.write_text("Broadcast client failed!")
+            print("Broadcast client failure: ", e)
+
+    # Can't use self.connection since that is being used to listen. I need it for disconnect.
+    def send_broadcast_message(self, msg):
+        iv = utils.generate_128_bit_random_number()
+        print(self.session_enc, iv)
+        cipher = utils.encrypt_AES(self.session_enc, iv)
+        encrypted_message = cipher.encrypt(msg.encode('latin-1'))
+        hmac = utils.make_hmac(self.session_ver, encrypted_message)
+        print(f'sess')
+        print(f"HMAC {hmac.decode('latin-1')}, session_ver = {self.session_ver}, encrypted_message = {encrypted_message.decode('latin-1')}")
+        data = json.dumps({"Verb": "Broadcast", "Body": iv.decode('latin-1'),
+                           "Message": encrypted_message.decode('latin-1'),
+                           "HMAC": hmac.decode('latin-1'),
+                           "Username": self.name}).encode('latin-1')
+        full_payload = '1'.encode('latin-1') + data  # Code 1 means cleartext
+
+        self.write_text("Sending broadcast request.")
+        self.send_data(full_payload)
+        server_response = self.listen(self.connection)
+        hashed_msg = utils.hash_message(iv)
+
+        server_json = json.loads(server_response)
+
+        if not self.check_signature(hashed_msg, server_json):
+            return
+
+        self.write_text("Server Message Verified")
+        code = server_json['Status']
+
+        if code == 'Success':
+            self.write_text("Broadcast Message Sent Successfully")
+        elif code == 'Fail':
+            self.write_fail(server_json['Reason'])
+        elif code == 'Bad Verb':
+            self.write_text("Bad Verb! Verb should never be bad?")
+
+    def broadcast_listener(self):
+        self.listening = True
+        try:
+            while True:
+                print('Hi')
+                server_resp = self.listening_connection.recv(8192)
+                print(server_resp)
+                data = json.loads(server_resp)
+                try:
+                    verb = data['Verb']
+                    body = data['Body']  # I use body for the signature, no real reason why
+                    iv = body
+                    msg = data['Message']
+                    hmac = data['HMAC']
+                    username = data['Username']
+                except Exception as e:
+                    self.write_text("Bad JSON from server")
+                    continue
+                if verb != 'Broadcast':
+                    self.write_text("Bad JSON from server")
+                    continue
+                if utils.make_hmac(self.session_ver, msg.encode('latin-1')) != hmac.encode("latin-1"):
+                    self.write_text("HMAC doesnt match")
+                    continue
+                cipher = utils.encrypt_AES(self.session_enc, iv.encode('latin-1'))
+                plaintext = cipher.decrypt(msg.encode('latin-1'))
+                self.write_text(f"Received message from {username}, message : {plaintext}")
+        except Exception as e:
+            self.write_fail("Connection died")
+            self.listening = False
 
     # First stage of enrollment, check if we can connect to server. If so, move on to secure enrollment
     def init_enroll(self, server_ip, server_port, name, password):
@@ -170,6 +276,7 @@ class ClientInstance:
 
         self.write_text("Sending enrollment request.")
         self.send_data(full_payload)
+        print("Hello?")
 
         server_response = self.listen(self.connection)
         hashed_msg = utils.hash_message(concatenated_message.encode('latin-1'))
@@ -192,16 +299,35 @@ class ClientInstance:
         elif code == 'Bad Verb':
             self.write_text("Bad Verb! Should have sent Enroll:")
 
+    def disconnect(self):
+        print("Disconnect... self.listening is", self.listening)
+        if not self.listening:
+            return
+        self.listening_connection.close()
+        self.listening = False
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.connect((self.server_ip, int(self.server_port)))
+            self.connection = sock
+        except Exception as e:
+            self.write_text("Unable to connect to the server at the specified address and port!")
+            print("connection failure: ", e)
+
+        self.password_hash = SHA256.new(self.password.encode()).digest()
+        concatenated_message = self.name.encode('utf-8').decode('latin-1') + self.password_hash[
+                                                                             :len(self.password_hash) // 2].decode(
+            'latin-1')
+        data = json.dumps({"Verb": "Disconnect", "Body": concatenated_message}).encode('latin-1')
+        encrypted_message = self.encrypt_message(data)
+        full_payload = '0'.encode('latin-1') + encrypted_message  # Code 0 means RSA encrypted
+        self.write_text("Disconnecting")
+        self.send_data(full_payload)
+
+
     def send_data(self, data):
         print("sending:", data)
         self.write_text(data)
         self.connection.send(data)
-
-    def send_string(self, message):
-        if self.connection is None:
-            self.write_text("Not connected to server! Failed to send message.")
-            return
-        self.connection.send(bytes(message, 'utf-8'))
 
     def write_text(self, text):
         self.text_frame.insert(tk.INSERT, text.__str__() + "\n")
@@ -214,7 +340,6 @@ class ClientInstance:
         # NOTE - Currently, assuming this data decodes to a string
         self.write_text("Waiting for server response...")
         data = sock.recv(8192)
-        # TODO find out proper way for finding out if client wants to close connection
         return data
 
     def encrypt_message(self, message):
@@ -233,7 +358,6 @@ class ClientInstance:
             self.write_text("Not in JSON format, aborting")
             return False
 
-        # TODO Try to remove redundant encodes and decodes, I dont know if its possible but they are ugly
         if not self.verify_message(hashed_msg, server_json['Signature'].encode('latin-1')):
             self.write_text(f"Server Message Not Verified")
             return False
