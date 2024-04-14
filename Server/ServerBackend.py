@@ -2,7 +2,7 @@ import json
 import socket
 import threading
 import tkinter as tk
-from Astral import utils
+import utils
 
 PASSWORD_HASH_LEN = 16  # Magic Number, the password hash sent by the client is 16 bytes long
 REQUEST_HEADERS = {'0'.encode(): "RSA", '1'.encode(): "CLEAR-TEXT", '2'.encode(): "AES"}
@@ -166,9 +166,12 @@ class ServerInstance:
                                        "Signature": signed_msg, 'Message': 'Done'})
                 return response.encode('latin-1'), False, False
 
-            if body in self.listeners:  # User is already connected, need to disconnect the user first.
+            if user in self.listeners:  # User is already connected, need to disconnect the user first.
+                response = json.dumps({"Status": "Fail", "Reason": "Already signed in at another connection",
+                                       "Signature": signed_msg, 'Message': 'Done'})
                 print("Disconnecting user")
-                self.disconnect_user(user)
+                # self.disconnect_user(user)
+                return response.encode('latin-1'), False, False
 
             session_key_enc_dec = utils.generate_128_bit_random_number()
             session_key_signing = utils.generate_128_bit_random_number()

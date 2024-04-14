@@ -1,9 +1,8 @@
 import socket
 import tkinter as tk
-from Astral import utils
+import utils
 import json
 import threading
-import base64
 
 from Crypto.Hash import SHA256
 
@@ -36,8 +35,13 @@ class ClientInstance:
         self.server_response = None
         self.listening = False
         self.listening_connection = None
+        self.logged_in = False
 
     def login(self, server_ip, server_port, name, password):
+        if self.logged_in:
+            self.write_text("Already logged in!")
+            return
+
         if not utils.debug:
             self.server_ip = server_ip
             self.server_port = server_port
@@ -48,7 +52,7 @@ class ClientInstance:
 
         # First initialize connection to server
         if self.listening:
-            self.write_text("Your already listening bro, I can't support multiple users on the same window")
+            self.write_text("You're already listening, I can't support multiple users on the same window")
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -65,13 +69,6 @@ class ClientInstance:
         except Exception as e:
             self.write_text("Authorize client failed!")
             print("authorize client failure: ", e)
-
-        # Finally, terminate connection with server
-        #try:
-        #    self.connection.close()
-        #except Exception as e:
-        #    self.write_text("Unable to gracefully close socket!")
-        #    print("socket closure failure: ", e)
 
     def authorize_client(self):
         data = json.dumps({"Verb": "Login", "Body": self.name}).encode('latin-1')
@@ -101,6 +98,8 @@ class ClientInstance:
 
         self.write_text(f"Challenge received: {challenge}")
         self.write_text(f"Challenge received: {challenge.encode('latin-1')}")
+
+        self.password_hash = SHA256.new(self.password.encode()).digest()
 
         hmac = utils.make_hmac(self.password_hash[:len(self.password_hash) // 2],
                                challenge.encode('latin-1')).decode('latin-1')
@@ -135,6 +134,7 @@ class ClientInstance:
         self.session_ver = cipher.decrypt(sig.encode('latin-1'))
         self.write_text("Spawning Listening Thread")
         self.listening_connection = self.connection
+        self.logged_in = True
         thread = threading.Thread(target=self.broadcast_listener)
         thread.start()
         print("thread started")
@@ -220,6 +220,10 @@ class ClientInstance:
 
     # First stage of enrollment, check if we can connect to server. If so, move on to secure enrollment
     def init_enroll(self, server_ip, server_port, name, password):
+        if self.logged_in:
+            self.write_text("Already logged in! Can't enroll while logged in.")
+            return
+
         if not utils.debug:
             self.server_ip = server_ip
             self.server_port = server_port

@@ -1,6 +1,8 @@
+import os
+import signal
 import tkinter as tk
-from Astral.Client.ClientBackend import ClientInstance
-from Astral import utils
+from Client.ClientBackend import ClientInstance
+import utils
 from tkinter import messagebox
 
 pub_enc = utils.load_rsa("client/server_enc_dec_pub.txt")
@@ -13,6 +15,7 @@ def on_close():
     if messagebox.askokcancel("Quit", "Do you want to quit?"):
         backend.disconnect()
         root.destroy()
+        os.kill(os.getpid(), signal.SIGTERM)
 
 
 def on_login_click():

@@ -1,14 +1,22 @@
+import os
+import signal
 import tkinter as tk
-
-import Astral.utils
-from Astral.Server.ServerBackend import ServerInstance
+from tkinter import messagebox
+import utils
+from Server.ServerBackend import ServerInstance
 
 backend = ServerInstance()
 
 
+def on_close():
+    if messagebox.askokcancel("Quit", "Do you want to quit?"):
+        root.destroy()
+        os.kill(os.getpid(), signal.SIGTERM)
+
+
 def on_ok_click():
     password = password_entry.get()
-    if Astral.utils.debug and password == "":
+    if utils.debug and password == "":
         backend.decrypt_keys("Obscurity")
     else:
         backend.decrypt_keys(password)
@@ -91,6 +99,7 @@ display_text = tk.Text(right_frame)
 display_text.pack(fill=tk.BOTH, expand=True, pady=10, padx=10)
 
 backend.set_text_frame(display_text)
+root.protocol("WM_DELETE_WINDOW", on_close)
 
 # Run
 root.mainloop()
