@@ -44,6 +44,8 @@ class ClientInstance:
             self.name = name
             self.password = password
 
+        print("Password ", self.password)
+
         # First initialize connection to server
         if self.listening:
             self.write_text("Your already listening bro, I can't support multiple users on the same window")
@@ -122,11 +124,9 @@ class ClientInstance:
             return
 
         cipher = utils.encrypt_AES(self.password_hash[:16], challenge.encode('latin-1'))
-        print("hi")
         try:
             enc = server_json['Enc_Dec']
             sig = server_json['Signing']
-            print(enc, sig)
         except Exception:
             self.write_fail('Enc_Dec or Signing not in server response')
             print(server_json)
@@ -160,12 +160,9 @@ class ClientInstance:
     # Can't use self.connection since that is being used to listen. I need it for disconnect.
     def send_broadcast_message(self, msg):
         iv = utils.generate_128_bit_random_number()
-        print(self.session_enc, iv)
         cipher = utils.encrypt_AES(self.session_enc, iv)
         encrypted_message = cipher.encrypt(msg.encode('latin-1'))
         hmac = utils.make_hmac(self.session_ver, encrypted_message)
-        print(f'sess')
-        print(f"HMAC {hmac.decode('latin-1')}, session_ver = {self.session_ver}, encrypted_message = {encrypted_message.decode('latin-1')}")
         data = json.dumps({"Verb": "Broadcast", "Body": iv.decode('latin-1'),
                            "Message": encrypted_message.decode('latin-1'),
                            "HMAC": hmac.decode('latin-1'),
@@ -196,9 +193,7 @@ class ClientInstance:
         self.listening = True
         try:
             while True:
-                print('Hi')
                 server_resp = self.listening_connection.recv(8192)
-                print(server_resp)
                 data = json.loads(server_resp)
                 try:
                     verb = data['Verb']
@@ -263,7 +258,6 @@ class ClientInstance:
         # Concatenate the most significant half of the hash with the username
         # I need to switch the encoding to latin-1 since I can't serialize a bytes array in json, and utf-8 can't
         # handle arbitrary bit strings...
-        print("Enroll client password hash: " + self.password_hash.decode('latin-1'))
         concatenated_message = self.name.encode('utf-8').decode('latin-1') + self.password_hash[
                                                                              :len(self.password_hash) // 2].decode(
             'latin-1')
@@ -276,7 +270,6 @@ class ClientInstance:
 
         self.write_text("Sending enrollment request.")
         self.send_data(full_payload)
-        print("Hello?")
 
         server_response = self.listen(self.connection)
         hashed_msg = utils.hash_message(concatenated_message.encode('latin-1'))
@@ -325,7 +318,6 @@ class ClientInstance:
 
 
     def send_data(self, data):
-        print("sending:", data)
         self.write_text(data)
         self.connection.send(data)
 

@@ -59,7 +59,11 @@ class ServerInstance:
         server_socket = socket.socket()
         server_name = "127.0.0.1"
 
-        server_socket.bind((server_name, int(self.port)))
+        try:
+            server_socket.bind((server_name, int(self.port)))
+        except OSError as o:
+            self.write_text(f"Bind failed, {o}")
+            return
         server_socket.listen(3)
         self.write_text(f"Listening on port: {self.port}")
 
@@ -135,10 +139,6 @@ class ServerInstance:
                 return response.encode('latin-1'), False, False
         elif verb == 'Login':  # Login is a persistent connection
             challenge = utils.generate_128_bit_random_number()
-            if body in self.listeners:
-                response = json.dumps({"Status": "Fail", "Reason": "User Is Already Connected",
-                                       "Signature": signed_msg, "Message": "Done"})
-                return response.encode('latin-1'), False, False
             if body in self.client_passwords:
                 self.hmac_randoms[body] = challenge
                 response = json.dumps(
@@ -165,6 +165,10 @@ class ServerInstance:
                 response = json.dumps({"Status": "Fail", "Reason": "HMAC Does Not Match",
                                        "Signature": signed_msg, 'Message': 'Done'})
                 return response.encode('latin-1'), False, False
+
+            if body in self.listeners:  # User is already connected, need to disconnect the user first.
+                print("Disconnecting user")
+                self.disconnect_user(user)
 
             session_key_enc_dec = utils.generate_128_bit_random_number()
             session_key_signing = utils.generate_128_bit_random_number()
@@ -259,7 +263,7 @@ class ServerInstance:
         if len(username) + len(password_hash) != len(body):  # Should never happen
             print("Parse error on client probably")
             return False
-        self.write_text(f"New enrollment successful!")
+        self.write_text(f"New enrollment successful! Password {password_hash}")
         self.client_passwords[username] = password_hash.encode('latin-1')
         return True
 
