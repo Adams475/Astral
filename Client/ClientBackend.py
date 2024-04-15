@@ -235,7 +235,7 @@ class ClientInstance:
                 try:
                     # Parse json packet
                     verb = data['Verb']
-                    body = data['Body']  # I use body for the signature, no real reason why
+                    body = data['Body']
                     iv = body
                     msg = data['Message']
                     hmac = data['HMAC']

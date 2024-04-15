@@ -220,7 +220,7 @@ class ServerInstance:
             # Create cipher
             cipher = utils.encrypt_AES(self.client_enc_dec_session_keys[username], iv.encode('latin-1'))
             # Decrypt message from client.
-            plaintext = cipher.decrypt(msg.encode('latin-1')).decode('latin-1')
+            plaintext = cipher.decrypt(msg.encode('latin-1'))
             self.write_text(f"Received message from {username}. Message contents: {plaintext}. Broadcasting message...")
             # Broadcast message to all connected clients
             self.broadcast_message(plaintext, username)
