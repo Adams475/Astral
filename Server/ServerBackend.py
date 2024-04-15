@@ -139,14 +139,14 @@ class ServerInstance:
                                        "Message": "Done"})
                 return response.encode('latin-1'), False, False
         elif verb == 'Login':  # Login is a persistent connection
-            challenge = utils.generate_128_bit_random_number().decode('latin-1')
+            challenge = utils.generate_128_bit_random_number()
             if body in self.client_passwords:
                 self.hmac_randoms[body] = challenge
                 response = json.dumps(
-                    {"Status": "Success", "Challenge": challenge, "Signature": signed_msg,
+                    {"Status": "Success", "Challenge": challenge.decode('latin-1'), "Signature": signed_msg,
                      "Message": "Done"})
                 return response.encode('latin-1'), True, False  # Persistent connection
-            else:
+            else: # User is not in database
                 response = json.dumps({"Status": "Fail", "Reason": "User Does Not Exist, Please Enroll First",
                                        "Signature": signed_msg, "Message": "Done"})
                 return response.encode('latin-1'), False, False
