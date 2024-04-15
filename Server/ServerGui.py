@@ -2,8 +2,8 @@ import os
 import signal
 import tkinter as tk
 from tkinter import messagebox
-import utils
-from Server.ServerBackend import ServerInstance
+from Astral import utils
+from ServerBackend import ServerInstance
 
 backend = ServerInstance()
 
