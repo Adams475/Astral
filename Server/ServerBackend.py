@@ -62,10 +62,20 @@ class ServerInstance:
     def spawn_servers(self):
         self.should_listen = True
         server_socket = socket.socket()
-        server_name = "127.0.0.1"
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # doesn't even have to be reachable
+            s.connect(('10.255.255.255', 1))
+            IP = s.getsockname()[0]
+        except:
+            IP = '127.0.0.1'
+        finally:
+            s.close()
+
+        print(IP)
 
         try:
-            server_socket.bind((server_name, int(self.port)))
+            server_socket.bind((IP, int(self.port)))
         except OSError as o:
             self.write_text(f"Bind failed, {o}")
             return
