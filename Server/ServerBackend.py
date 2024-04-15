@@ -2,7 +2,7 @@ import json
 import socket
 import threading
 import tkinter as tk
-import utils
+from Astral import utils
 
 PASSWORD_HASH_LEN = 16  # Magic Number, the password hash sent by the client is 16 bytes long
 REQUEST_HEADERS = {'0'.encode(): "RSA", '1'.encode(): "CLEAR-TEXT", '2'.encode(): "AES"}
@@ -31,10 +31,13 @@ class ServerInstance:
         utils.check_new_keys()
 
     def decrypt_keys(self, password):
+
+        # Files with private keys
         encrypted_rsa_key_file_enc_dec = "server/encrypted_server_enc_dec_pub_prv.txt"
         encrypted_rsa_key_file_signing = "server/encrypted_server_signing_verification_pub_prv.txt"
 
         try:
+            # Try to decrypt the keys with the provided password
             self.rsa_private_key_enc_dec = utils.decrypt_rsa_private_key(encrypted_rsa_key_file_enc_dec,
                                                                          password)
             self.rsa_private_key_signing = utils.decrypt_rsa_private_key(encrypted_rsa_key_file_signing,
@@ -45,14 +48,16 @@ class ServerInstance:
             self.write_text("Incorrect Password")
 
     def listen(self, port):
+        # If the password was correct then the user should be authenticated. Otherwise they can't start the server
         if not self.authenticated:
             self.write_text("You must login before starting the server")
             return
         if not utils.debug:
             self.port = port
+
+        #  Background thread that accepts connections.
         thread = threading.Thread(target=self.spawn_servers)
         thread.start()
-        print("returning")
 
     def spawn_servers(self):
         self.should_listen = True
@@ -68,39 +73,34 @@ class ServerInstance:
         self.write_text(f"Listening on port: {self.port}")
 
         while self.should_listen:
-            print("ShouldListen = ", self.should_listen)
             connection, addr = server_socket.accept()
-            print("Connection", connection)
+            # Once a connection is accepted, create a thread to handle the connecting client
             thread = threading.Thread(target=self.handle_client, args=(connection, addr))
             self.threads.append(thread)
             thread.start()
-            print("????")
         print("Should never happen")
 
     def handle_client(self, connection, addr):
-        print("Thread")
         self.write_text(f"Connection request from address: {addr}")
         response = ""
         while True:
-            # NOTE - Currently, assuming this data decodes to a string
             data = connection.recv(8192)
-            # TODO find out proper way for finding out if client wants to close connection
-            client_message = self.parse_raw_data(data)
+            client_message = self.parse_raw_data(data)  # Determine if data needs to be decrypted with RSA
             if client_message is None:
                 continue
-
             self.write_text(f"Message from address {addr}: {client_message}")
-            response, keep_alive, listen = self.handle_request(client_message, connection)
-            if response is not None:
+            response, keep_alive, listen = self.handle_request(client_message, connection)  # Main server logic
+            if response is not None:  # Should never be none, if packet is corrupted then should notify client
                 self.write_text(f"Response to address {addr}: {response}")
                 connection.send(response)
-                if listen:
+                if listen:  # Thread is later used to broadcast, so we don't want to break and close connection
                     print("returning")
                     return
-            if not keep_alive:
+            if not keep_alive:  # Thread is no longer needed, can break and close connection
                 break
         connection.close()
 
+    # Write text to text box on GUI
     def write_text(self, text):
         self.text_frame.insert(tk.INSERT, text + "\n")
         self.text_frame.see(tk.END)
@@ -124,10 +124,11 @@ class ServerInstance:
     # Parse verb and message body
     def handle_request(self, message, connection):
         data = json.loads(message)
-        print(data)
         verb = data['Verb']
         body = data['Body']  # I use body for the signature, no real reason why
         hash_msg = utils.hash_message(body.encode('latin-1'))
+        # Make signature. It needs to be decoded into a string because the JSON library cannot serialize the bytes
+        # objects that are returned from the Crypto library.
         signed_msg = self.sign_message(hash_msg).decode('latin-1')
         if verb == 'Enroll':
             if self.enroll_user(body):
@@ -138,18 +139,19 @@ class ServerInstance:
                                        "Message": "Done"})
                 return response.encode('latin-1'), False, False
         elif verb == 'Login':  # Login is a persistent connection
-            challenge = utils.generate_128_bit_random_number()
+            challenge = utils.generate_128_bit_random_number().decode('latin-1')
             if body in self.client_passwords:
                 self.hmac_randoms[body] = challenge
                 response = json.dumps(
-                    {"Status": "Success", "Challenge": challenge.decode('latin-1'), "Signature": signed_msg,
+                    {"Status": "Success", "Challenge": challenge, "Signature": signed_msg,
                      "Message": "Done"})
-                return response.encode('latin-1'), True, False
+                return response.encode('latin-1'), True, False  # Persistent connection
             else:
                 response = json.dumps({"Status": "Fail", "Reason": "User Does Not Exist, Please Enroll First",
                                        "Signature": signed_msg, "Message": "Done"})
                 return response.encode('latin-1'), False, False
         elif verb == 'HMAC':
+            # Packet needs to have username, this should never happen
             try:
                 user = data['Username']
             except Exception:
@@ -157,22 +159,25 @@ class ServerInstance:
                                        "Signature": signed_msg, "Message": "Done"})
                 return response.encode('latin-1'), False, False
             hmac = body
+            # User needs to have a challenge generated from the login elif. If not an error is returned.
             if user not in self.hmac_randoms:
                 response = json.dumps({"Status": "Fail", "Reason": "User Not Logged In",
                                        "Signature": signed_msg, "Message": "Done"})
                 return response.encode('latin-1'), False, False
+            # Check the HMAC.
             if utils.make_hmac(self.client_passwords[user], self.hmac_randoms[user]) != hmac.encode("latin-1"):
                 response = json.dumps({"Status": "Fail", "Reason": "HMAC Does Not Match",
                                        "Signature": signed_msg, 'Message': 'Done'})
                 return response.encode('latin-1'), False, False
-
-            if user in self.listeners:  # User is already connected, need to disconnect the user first.
+            # User is already connected, need to disconnect the user first.
+            if user in self.listeners:
                 response = json.dumps({"Status": "Fail", "Reason": "Already signed in at another connection",
                                        "Signature": signed_msg, 'Message': 'Done'})
                 print("Disconnecting user")
                 # self.disconnect_user(user)
                 return response.encode('latin-1'), False, False
 
+            # Create session keys for the current Client session.
             session_key_enc_dec = utils.generate_128_bit_random_number()
             session_key_signing = utils.generate_128_bit_random_number()
             self.client_signing_session_keys[user] = session_key_signing
@@ -195,6 +200,7 @@ class ServerInstance:
             return None, False, False
         elif verb == 'Broadcast':
             iv = body
+            # Check is JSON is the right format
             try:
                 msg = data['Message']
                 hmac = data['HMAC']
@@ -204,15 +210,21 @@ class ServerInstance:
                                        "Signature": signed_msg, 'Message': 'Done'})
                 self.write_text("Received Bad JSON from Client")
                 return response.encode('latin-1'), False, False
-            print(f"HMAC {hmac}, session_ver = {self.client_signing_session_keys[username]}, encrypted_message = {msg}")
+
+            # Check if hmac matches the one stored on client. Don't want a replay attack to be possible.
             if utils.make_hmac(self.client_signing_session_keys[username], msg.encode('latin-1')) != hmac.encode("latin-1"):
                 response = json.dumps({"Status": "Fail", "Reason": "HMAC Does Not Match",
                                        "Signature": signed_msg, 'Message': 'Done'})
                 return response.encode('latin-1'), False, False
+
+            # Create cipher
             cipher = utils.encrypt_AES(self.client_enc_dec_session_keys[username], iv.encode('latin-1'))
-            plaintext = cipher.decrypt(msg.encode('latin-1'))
+            # Decrypt message from client.
+            plaintext = cipher.decrypt(msg.encode('latin-1')).decode('latin-1')
             self.write_text(f"Received message from {username}. Message contents: {plaintext}. Broadcasting message...")
+            # Broadcast message to all connected clients
             self.broadcast_message(plaintext, username)
+            # Notify the original client that the message was sent successfully.
             response = json.dumps({"Status": "Success", "Reason": "Message Broadcast Successfully!",
                                    "Signature": signed_msg, 'Message': 'Done'})
             return response.encode('latin-1'), False, False
@@ -222,7 +234,9 @@ class ServerInstance:
         return response.encode('latin-1'), False
 
     def broadcast_message(self, message, username):
+        # For each client currently connected
         for users in self.listeners:
+            # Don't broadcast message back to original sender
             if users == username:
                 continue
             iv = utils.generate_128_bit_random_number()
@@ -233,11 +247,12 @@ class ServerInstance:
                                "Message": encrypted_message.decode('latin-1'),
                                "HMAC": hmac.decode('latin-1'),
                                "Username": username}).encode('latin-1')
-            self.listeners[users].send(data)
-        ...
+            try:
+                self.listeners[users].send(data)
+            except Exception:
+                print("Connection died")
 
     def disconnect_user(self, body):
-        print('Hello?')
         password_hash = body[-PASSWORD_HASH_LEN:]
         username = body[:-PASSWORD_HASH_LEN]
         if username not in self.client_passwords:
@@ -256,6 +271,7 @@ class ServerInstance:
 
     # Enroll a user.
     def enroll_user(self, body):
+        # First, extract username and password from body
         password_hash = body[-PASSWORD_HASH_LEN:]
         print("Enroll server password hash: " + password_hash)
         username = body[:-PASSWORD_HASH_LEN]

@@ -1,8 +1,8 @@
 import os
 import signal
 import tkinter as tk
-from Client.ClientBackend import ClientInstance
-import utils
+from ClientBackend import ClientInstance
+from Astral import utils
 from tkinter import messagebox
 
 pub_enc = utils.load_rsa("client/server_enc_dec_pub.txt")

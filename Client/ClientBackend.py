@@ -1,6 +1,6 @@
 import socket
 import tkinter as tk
-import utils
+from Astral import utils
 import json
 import threading
 
