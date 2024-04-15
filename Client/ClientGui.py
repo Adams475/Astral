@@ -2,7 +2,7 @@ import os
 import signal
 import tkinter as tk
 from ClientBackend import ClientInstance
-from Astral import utils
+import utils
 from tkinter import messagebox
 
 # Initial loads for stored server keys

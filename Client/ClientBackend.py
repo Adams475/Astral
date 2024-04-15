@@ -1,6 +1,6 @@
 import socket
 import tkinter as tk
-from Astral import utils
+import utils
 import json
 import threading
 from Crypto.Hash import SHA256

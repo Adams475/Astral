@@ -2,7 +2,7 @@ import json
 import socket
 import threading
 import tkinter as tk
-from Astral import utils
+import utils
 
 PASSWORD_HASH_LEN = 16  # Magic Number, the password hash sent by the client is 16 bytes long
 REQUEST_HEADERS = {'0'.encode(): "RSA", '1'.encode(): "CLEAR-TEXT", '2'.encode(): "AES"}
