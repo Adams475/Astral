@@ -52,8 +52,6 @@ class ClientInstance:
             self.name = name
             self.password = password
 
-        print("Password ", self.password)
-
         # Debug statement - shouldn't occur
         if self.listening:
             self.write_text("You're already listening, I can't support multiple users on the same window")
@@ -113,7 +111,6 @@ class ClientInstance:
             self.write_fail("Challenge was not part of the json")
             return
 
-        self.write_text(f"Challenge received: {challenge}")
         self.write_text(f"Challenge received: {challenge.encode('latin-1')}")
 
         # Create password hash
@@ -346,7 +343,6 @@ class ClientInstance:
     # Disconnect
     # Gracefully disconnects from server, letting it know that it should close its connection to the client
     def disconnect(self):
-        print("Disconnect... self.listening is", self.listening)
         if not self.listening:
             return
         self.listening_connection.close()
